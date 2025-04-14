@@ -5,6 +5,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import argparse
 import math
 from itertools import product
+from matplotlib.widgets import Slider
 
 def parse_origin(origin_element):
     """Parse the origin element to get position and rotation."""
@@ -58,8 +59,8 @@ def transformation_matrix(xyz, rpy):
 
 def parse_urdf(file_path):
     """Parse URDF file and extract joint information with limits."""
-    tree = ET.parse(file_path)
-    root = tree.getroot()
+    tree_xml = ET.parse(file_path)
+    root = tree_xml.getroot()
     
     # Dictionary to store links
     links = {}
@@ -77,7 +78,7 @@ def parse_urdf(file_path):
         
         xyz, rpy = parse_origin(origin_element)
         
-        # Default limits
+        # Default limits and axis
         lower_limit = 0.0
         upper_limit = 0.0
         axis = [1.0, 0.0, 0.0]  # Default axis is x-axis
@@ -99,7 +100,7 @@ def parse_urdf(file_path):
             if axis_norm > 0:
                 axis = [val / axis_norm for val in axis]
         
-        # Skip fixed joints for workspace analysis
+        # Movable (non‑fixed) joint flag
         movable = joint_type != 'fixed'
         
         joints[joint_name] = {
@@ -122,7 +123,7 @@ def build_kinematic_tree(joints):
     tree = {}
     root_link = None
     
-    # Find all links
+    # Collect all links and determine which are children.
     all_links = set()
     child_links = set()
     
@@ -137,54 +138,24 @@ def build_kinematic_tree(joints):
             tree[parent] = []
         tree[parent].append((child, joint_name))
     
-    # Find the root link (the one that's not a child of any joint)
+    # The root link is one that is not a child of any joint.
     root_candidates = all_links - child_links
     if root_candidates:
         root_link = next(iter(root_candidates))
     
     return tree, root_link
 
-def calculate_joint_positions(joints, tree, root_link, joint_angles=None):
-    """Calculate absolute positions of all joints with specific joint angles."""
-    joint_positions = {}
-    link_transforms = {root_link: np.eye(4)}  # Start with identity transform for root
-    
-    # If no joint angles provided, use zeros
-    if joint_angles is None:
-        joint_angles = {name: 0.0 for name in joints.keys()}
-    
-    def traverse_tree(link, parent_transform):
-        if link in tree:
-            for child, joint_name in tree[link]:
-                joint_info = joints[joint_name]
-                joint_transform = joint_info['transform'].copy()
-                
-                # Apply joint angle if this is a movable joint
-                if joint_info['movable'] and joint_name in joint_angles:
-                    angle = joint_angles[joint_name]
-                    axis = joint_info['axis']
-                    
-                    if joint_info['type'] == 'revolute' or joint_info['type'] == 'continuous':
-                        # Apply rotation based on joint angle and axis
-                        rotation = rotation_matrix_from_axis_angle(axis, angle)
-                        # Update the rotation part of the transformation matrix
-                        joint_transform[:3, :3] = np.dot(joint_transform[:3, :3], rotation)
-                    elif joint_info['type'] == 'prismatic':
-                        # Apply translation based on joint displacement and axis
-                        translation = np.array(axis) * angle
-                        joint_transform[:3, 3] += translation
-                
-                # Calculate absolute transform
-                abs_transform = np.dot(parent_transform, joint_transform)
-                # Store the joint position (translation part of the transform)
-                joint_positions[joint_name] = abs_transform[:3, 3]
-                # Update the child link transform
-                link_transforms[child] = abs_transform
-                # Recursively process children
-                traverse_tree(child, abs_transform)
-    
-    traverse_tree(root_link, link_transforms[root_link])
-    return joint_positions, link_transforms
+def print_kinematic_tree(tree, current_link, indent=0):
+    """
+    Recursively print the kinematic tree.
+    Each level is indented for clarity.
+    """
+    indent_str = "  " * indent
+    print(f"{indent_str}{current_link}")
+    if current_link in tree:
+        for child, joint_name in tree[current_link]:
+            print(f"{indent_str}  |--({joint_name})--> {child}")
+            print_kinematic_tree(tree, child, indent + 2)
 
 def rotation_matrix_from_axis_angle(axis, angle):
     """Create a rotation matrix from an axis and angle."""
@@ -199,89 +170,63 @@ def rotation_matrix_from_axis_angle(axis, angle):
         [t*x*z - y*s,  t*y*z + x*s,  t*z*z + c]
     ])
 
-def get_end_effector_positions(joints, tree, root_link, num_samples=50):
-    """Sample joint configurations and return end effector positions."""
-    # Find movable joints
-    movable_joints = [name for name, info in joints.items() if info['movable']]
+def calculate_joint_positions(joints, tree, root_link, joint_angles=None):
+    """
+    Calculate absolute positions for all joints.
+    `joint_angles` should be a dictionary mapping joint name to its angle/displacement.
+    If None, all joint angles default to 0.0.
+    """
+    joint_positions = {}
+    link_transforms = {root_link: np.eye(4)}  # Start with the identity transform
     
-    # If no movable joints, return empty list
-    if not movable_joints:
-        return []
+    # Default joint angles to zero if not provided
+    if joint_angles is None:
+        joint_angles = {name: 0.0 for name in joints.keys()}
     
-    # Create discretized angles for each joint
-    joint_samples = {}
-    for joint_name in movable_joints:
-        joint_info = joints[joint_name]
-        lower = joint_info['lower_limit']
-        upper = joint_info['upper_limit']
-        
-        # Handle continuous joints
-        if joint_info['type'] == 'continuous':
-            lower = -math.pi
-            upper = math.pi
-        
-        # Create linearly spaced samples
-        joint_samples[joint_name] = np.linspace(lower, upper, num_samples)
+    def traverse_tree(link, parent_transform):
+        if link in tree:
+            for child, joint_name in tree[link]:
+                joint_info = joints[joint_name]
+                # Start with the fixed transform from the <origin>
+                joint_transform = joint_info['transform'].copy()
+                
+                # If this joint is movable, apply its current angle/displacement.
+                if joint_info['movable'] and joint_name in joint_angles:
+                    angle = joint_angles[joint_name]
+                    axis = joint_info['axis']
+                    if joint_info['type'] in ['revolute', 'continuous']:
+                        rotation = rotation_matrix_from_axis_angle(axis, angle)
+                        # Update the rotation part of the transform
+                        joint_transform[:3, :3] = np.dot(joint_transform[:3, :3], rotation)
+                    elif joint_info['type'] == 'prismatic':
+                        translation = np.array(axis) * angle
+                        joint_transform[:3, 3] += translation
+                
+                # Compute absolute transform and store the joint's position.
+                abs_transform = np.dot(parent_transform, joint_transform)
+                joint_positions[joint_name] = abs_transform[:3, 3]
+                link_transforms[child] = abs_transform
+                
+                # Recurse to process child links.
+                traverse_tree(child, abs_transform)
     
-    # Find end effector links (leaves in the tree)
-    end_effector_links = set()
-    link_has_children = set()
-    
-    for parent, children in tree.items():
-        link_has_children.add(parent)
-        for child, _ in children:
-            link_has_children.add(child)
-    
-    all_links = set()
-    for joint_info in joints.values():
-        all_links.add(joint_info['parent'])
-        all_links.add(joint_info['child'])
-    
-    end_effector_links = all_links - link_has_children
-    
-    # If no end effectors found, use all leaf joints
-    if not end_effector_links:
-        # Find leaf joints (those that don't have children)
-        leaf_joints = []
-        for joint_name, joint_info in joints.items():
-            child = joint_info['child']
-            if child not in tree:
-                leaf_joints.append(joint_name)
-        
-        # Return list of leaf joint names
-        return sample_joint_positions(joints, tree, root_link, leaf_joints, joint_samples, num_samples)
-    else:
-        # Find joints that connect to end effector links
-        end_effector_joints = []
-        for joint_name, joint_info in joints.items():
-            if joint_info['child'] in end_effector_links:
-                end_effector_joints.append(joint_name)
-        
-        return sample_joint_positions(joints, tree, root_link, end_effector_joints, joint_samples, num_samples)
+    traverse_tree(root_link, link_transforms[root_link])
+    return joint_positions, link_transforms
 
 def sample_joint_positions(joints, tree, root_link, target_joints, joint_samples, num_samples):
     """Sample joint configurations and return positions of target joints."""
-    # Create list of movable joints that have samples
     movable_joints = [name for name in joint_samples.keys()]
-    
-    # Initialize empty list for end effector positions
     end_positions = []
     
     # Limit the number of combinations for performance
     max_combinations = 10000
-    
-    # Calculate number of potential configurations
     num_configs = 1
     for samples in joint_samples.values():
         num_configs *= len(samples)
     
-    # If too many configurations, reduce samples per joint
     if num_configs > max_combinations:
-        # Calculate a reasonable number of samples per joint
         samples_per_joint = max(2, int(math.pow(max_combinations, 1/len(movable_joints))))
         print(f"Reducing samples from {num_samples} to {samples_per_joint} per joint due to combinatorial explosion")
-        
-        # Update joint samples
         for joint_name in joint_samples:
             lower = joints[joint_name]['lower_limit']
             upper = joints[joint_name]['upper_limit']
@@ -290,29 +235,17 @@ def sample_joint_positions(joints, tree, root_link, target_joints, joint_samples
                 upper = math.pi
             joint_samples[joint_name] = np.linspace(lower, upper, samples_per_joint)
     
-    # Generate combinations of joint angles
     count = 0
     print("Calculating workspace by sampling joint configurations...")
-    
-    # For each combination of joint angles
     for joint_values in product(*[joint_samples[j] for j in movable_joints]):
-        # Create a dictionary mapping joint names to values
         joint_angles = dict(zip(movable_joints, joint_values))
-        
-        # Calculate joint positions for this configuration
-        positions, transforms = calculate_joint_positions(joints, tree, root_link, joint_angles)
-        
-        # Store the positions of target joints
+        positions, _ = calculate_joint_positions(joints, tree, root_link, joint_angles)
         for joint_name in target_joints:
             if joint_name in positions:
                 end_positions.append(positions[joint_name])
-        
-        # Show progress
         count += 1
         if count % 100 == 0:
             print(f"Processed {count} configurations...")
-        
-        # Limit the number of samples for performance
         if count >= max_combinations:
             print(f"Reached maximum number of configurations ({max_combinations})")
             break
@@ -320,43 +253,79 @@ def sample_joint_positions(joints, tree, root_link, target_joints, joint_samples
     print(f"Total configurations processed: {count}")
     return end_positions
 
-def visualize_joints(joint_positions, joints, tree, root_link, workspace_points=None):
-    """Visualize the joints and their connections, along with workspace points."""
-    fig = plt.figure(figsize=(12, 10))
-    ax = fig.add_subplot(111, projection='3d')
+def get_end_effector_positions(joints, tree, root_link, num_samples=50):
+    """Sample joint configurations and return end effector positions."""
+    movable_joints = [name for name, info in joints.items() if info['movable']]
     
-    # Plot joints as points
+    if not movable_joints:
+        return []
+    
+    joint_samples = {}
+    for joint_name in movable_joints:
+        joint_info = joints[joint_name]
+        lower = joint_info['lower_limit']
+        upper = joint_info['upper_limit']
+        if joint_info['type'] == 'continuous':
+            lower = -math.pi
+            upper = math.pi
+        joint_samples[joint_name] = np.linspace(lower, upper, num_samples)
+    
+    # Identify end effectors as links that are not parents in the kinematic tree.
+    link_with_children = set()
+    for parent, children in tree.items():
+        link_with_children.add(parent)
+        for child, _ in children:
+            link_with_children.add(child)
+    
+    all_links = set()
+    for joint_info in joints.values():
+        all_links.add(joint_info['parent'])
+        all_links.add(joint_info['child'])
+    
+    end_effector_links = all_links - link_with_children
+    
+    if not end_effector_links:
+        leaf_joints = []
+        for joint_name, joint_info in joints.items():
+            child = joint_info['child']
+            if child not in tree:
+                leaf_joints.append(joint_name)
+        return sample_joint_positions(joints, tree, root_link, leaf_joints, joint_samples, num_samples)
+    else:
+        end_effector_joints = []
+        for joint_name, joint_info in joints.items():
+            if joint_info['child'] in end_effector_links:
+                end_effector_joints.append(joint_name)
+        return sample_joint_positions(joints, tree, root_link, end_effector_joints, joint_samples, num_samples)
+
+def draw_scene(ax, joint_positions, tree, root_link, workspace_points=None):
+    """Draw the robot (joints and connections) and workspace points on the given 3D axis."""
+    ax.cla()
+    # Plot joint positions
     xs = [pos[0] for pos in joint_positions.values()]
     ys = [pos[1] for pos in joint_positions.values()]
     zs = [pos[2] for pos in joint_positions.values()]
-    
-    # Plot points for each joint
     ax.scatter(xs, ys, zs, c='b', marker='o', s=100, label='Joints')
     
-    # Add joint names as text
+    # Label joints
     for joint_name, position in joint_positions.items():
         ax.text(position[0], position[1], position[2], joint_name, size=8)
     
-    # Draw lines between connected joints
+    # Draw lines connecting joints recursively
     def draw_connections(link, parent_joint=None):
         if link in tree:
             for child, joint_name in tree[link]:
-                if parent_joint and joint_name in joint_positions:
-                    # Draw a line from parent joint to this joint
+                if parent_joint is not None and joint_name in joint_positions:
                     start_pos = joint_positions[parent_joint]
                     end_pos = joint_positions[joint_name]
                     ax.plot([start_pos[0], end_pos[0]],
                             [start_pos[1], end_pos[1]],
                             [start_pos[2], end_pos[2]], 'r-')
-                
-                # Continue recursion
                 draw_connections(child, joint_name)
     
-    # Draw connections starting from children of root
     if root_link in tree:
         for child, joint_name in tree[root_link]:
             if joint_name in joint_positions:
-                # For root's children, start line from origin
                 end_pos = joint_positions[joint_name]
                 ax.plot([0, end_pos[0]],
                         [0, end_pos[1]],
@@ -368,48 +337,81 @@ def visualize_joints(joint_positions, joints, tree, root_link, workspace_points=
         ws_xs = [p[0] for p in workspace_points]
         ws_ys = [p[1] for p in workspace_points]
         ws_zs = [p[2] for p in workspace_points]
-        
-        # Plot points with alpha for better visualization
         ax.scatter(ws_xs, ws_ys, ws_zs, c='g', marker='.', s=10, alpha=0.2, label='Workspace')
     
-    # Set labels
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
     ax.set_title('URDF Joint Visualization with Reachable Workspace')
     ax.legend()
     
-    # Make the plot look better
     all_points = []
     if joint_positions:
         all_points.extend(list(joint_positions.values()))
     if workspace_points:
         all_points.extend(workspace_points)
-        
     if all_points:
         all_xs = [p[0] for p in all_points]
         all_ys = [p[1] for p in all_points]
         all_zs = [p[2] for p in all_points]
-        
-        # Set axis limits
-        max_range = max(
-            max(all_xs) - min(all_xs),
-            max(all_ys) - min(all_ys),
-            max(all_zs) - min(all_zs)
-        )
-        mid_x = (max(all_xs) + min(all_xs)) / 2
-        mid_y = (max(all_ys) + min(all_ys)) / 2
-        mid_z = (max(all_zs) + min(all_zs)) / 2
-        
+        max_range = max(max(all_xs)-min(all_xs), max(all_ys)-min(all_ys), max(all_zs)-min(all_zs))
+        mid_x = (max(all_xs)+min(all_xs)) / 2
+        mid_y = (max(all_ys)+min(all_ys)) / 2
+        mid_z = (max(all_zs)+min(all_zs)) / 2
         ax.set_xlim(mid_x - max_range/2, mid_x + max_range/2)
         ax.set_ylim(mid_y - max_range/2, mid_y + max_range/2)
         ax.set_zlim(mid_z - max_range/2, mid_z + max_range/2)
     
-    plt.tight_layout()
+    plt.draw()
+
+def interactive_visualizer(links, joints, tree, root_link, workspace_points=None):
+    """
+    Launch an interactive visualizer:
+      - The left 70% of the figure shows a 3D view of the robot and workspace.
+      - The right 30% has vertical sliders to adjust each movable joint.
+    """
+    # Create one figure and reserve space on the right for sliders.
+    fig = plt.figure(figsize=(12, 10))
+    fig.subplots_adjust(right=0.7)
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # Initial joint angles: default to zero.
+    initial_angles = {joint_name: 0.0 for joint_name, joint in joints.items() if joint['movable']}
+    joint_positions, _ = calculate_joint_positions(joints, tree, root_link, initial_angles)
+    draw_scene(ax, joint_positions, tree, root_link, workspace_points)
+    
+    # Create sliders for all movable joints.
+    movable_joints = {name: joint for name, joint in joints.items() if joint['movable']}
+    
+    slider_height = 0.03
+    slider_padding = 0.01
+    sliders = {}
+    
+    for i, (joint_name, joint) in enumerate(movable_joints.items()):
+        left = 0.72    # Right-side region for sliders.
+        width = 0.22
+        bottom = 0.95 - (i+1) * (slider_height + slider_padding)
+        rect = [left, bottom, width, slider_height]
+        ax_slider = fig.add_axes(rect)
+        slider = Slider(ax_slider,
+                        joint_name,
+                        joint['lower_limit'],
+                        joint['upper_limit'],
+                        valinit=0.0)
+        sliders[joint_name] = slider
+
+    def update_sliders(val):
+        current_angles = {name: slider.val for name, slider in sliders.items()}
+        joint_positions, _ = calculate_joint_positions(joints, tree, root_link, current_angles)
+        draw_scene(ax, joint_positions, tree, root_link, workspace_points)
+    
+    for slider in sliders.values():
+        slider.on_changed(update_sliders)
+    
     plt.show()
 
 def main():
-    parser = argparse.ArgumentParser(description='Visualize joints and workspace from a URDF file.')
+    parser = argparse.ArgumentParser(description='Visualize joints, workspace, and kinematic tree from a URDF file.')
     parser.add_argument('urdf_file', type=str, help='Path to the URDF file')
     parser.add_argument('--samples', type=int, default=200, help='Number of samples per joint for workspace analysis')
     parser.add_argument('--no-workspace', action='store_true', help='Skip workspace analysis')
@@ -422,6 +424,8 @@ def main():
     tree, root_link = build_kinematic_tree(joints)
     print(f"Root link: {root_link}")
     
+
+    
     print("Calculating joint positions for neutral pose...")
     joint_positions, _ = calculate_joint_positions(joints, tree, root_link)
     
@@ -430,9 +434,14 @@ def main():
         print(f"Calculating workspace using {args.samples} samples per joint...")
         workspace_points = get_end_effector_positions(joints, tree, root_link, args.samples)
         print(f"Workspace analysis complete: {len(workspace_points)} points generated")
+
+    print("\nKinematic Tree:")
+    print_kinematic_tree(tree, root_link)
     
-    print("Visualizing joints and workspace...")
-    visualize_joints(joint_positions, joints, tree, root_link, workspace_points)
+    print("Launching interactive visualizer (with joint sliders)...")
+    interactive_visualizer(links, joints, tree, root_link, workspace_points)
+
+
 
 if __name__ == "__main__":
     main()
