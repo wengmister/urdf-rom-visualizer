@@ -116,12 +116,24 @@ def build_kinematic_tree(joints):
             tree[parent] = []
         tree[parent].append((child, joint_name))
     
-    # The root link is one that is never a child
+    # The root link is one that is never a child.
     root_candidates = all_links - child_links
     if root_candidates:
         root_link = next(iter(root_candidates))
     
     return tree, root_link
+
+def print_kinematic_tree(tree, current_link, indent=0):
+    """
+    Recursively print the kinematic tree.
+    Each level is indented for clarity.
+    """
+    indent_str = "  " * indent
+    print(f"{indent_str}{current_link}")
+    if current_link in tree:
+        for child, joint_name in tree[current_link]:
+            print(f"{indent_str}  |--({joint_name})--> {child}")
+            print_kinematic_tree(tree, child, indent + 2)
 
 def rotation_about_axis(axis, angle):
     """Compute a 4x4 rotation matrix about an arbitrary axis using Rodrigues' formula."""
@@ -184,17 +196,17 @@ def calculate_joint_positions(joints, tree, root_link):
 def draw_robot(ax, joint_positions, tree, root_link):
     """Draw the robot's joints and connections on the given 3D axis."""
     ax.cla()  # Clear the axis for redrawing
-    # Plot joint positions as blue dots
+    # Plot joint positions as blue dots.
     xs = [pos[0] for pos in joint_positions.values()]
     ys = [pos[1] for pos in joint_positions.values()]
     zs = [pos[2] for pos in joint_positions.values()]
     ax.scatter(xs, ys, zs, c='b', marker='o', s=100)
     
-    # Label each joint
+    # Label each joint.
     for joint_name, position in joint_positions.items():
         ax.text(position[0], position[1], position[2], joint_name, size=8)
     
-    # Draw lines connecting the joints
+    # Draw lines connecting joints.
     def draw_connections(link, parent_joint=None):
         if link in tree:
             for child, joint_name in tree[link]:
@@ -220,12 +232,12 @@ def draw_robot(ax, joint_positions, tree, root_link):
     ax.set_zlabel('Z')
     ax.set_title('URDF Joint Visualization')
     
-    # Optionally, adjust the axis limits for a nicer view
+    # Adjust the axis limits for a nicer view.
     if xs and ys and zs:
-        max_range = max(max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs))
-        mid_x = (max(xs) + min(xs)) / 2
-        mid_y = (max(ys) + min(ys)) / 2
-        mid_z = (max(zs) + min(zs)) / 2
+        max_range = max(max(xs)-min(xs), max(ys)-min(ys), max(zs)-min(zs))
+        mid_x = (max(xs)+min(xs)) / 2
+        mid_y = (max(ys)+min(ys)) / 2
+        mid_z = (max(zs)+min(zs)) / 2
         ax.set_xlim(mid_x - max_range/2, mid_x + max_range/2)
         ax.set_ylim(mid_y - max_range/2, mid_y + max_range/2)
         ax.set_zlim(mid_z - max_range/2, mid_z + max_range/2)
@@ -234,38 +246,31 @@ def draw_robot(ax, joint_positions, tree, root_link):
 def interactive_visualizer(links, joints, tree, root_link):
     """
     Launch an interactive visualizer:
-    - A 3D view of the robot is shown on the left.
-    - For each movable joint, a slider is added on the right side of the figure
-      that allows the user to adjust its angle (for revolute) or displacement (for prismatic).
+      - A 3D view of the robot is shown on the left.
+      - For each movable joint, a slider is added on the right side.
     """
-    
-    # Create main figure and 3D axis occupying left 60% of the figure.
+    # Create a single figure and adjust its layout.
     fig = plt.figure(figsize=(12, 10))
+    fig.subplots_adjust(right=0.7)
     ax = fig.add_subplot(111, projection='3d')
     
-    # Reserve space on the right for sliders by adjusting the subplots.
-    plt.subplots_adjust(right=0.6)
-    
-    # Calculate and draw initial joint positions.
+    # Draw the initial robot configuration.
     joint_positions = calculate_joint_positions(joints, tree, root_link)
     draw_robot(ax, joint_positions, tree, root_link)
     
-    # Identify movable joints (revolute or prismatic).
+    # Select movable joints.
     movable_joints = {name: joint for name, joint in joints.items() if joint['type'] in ['revolute', 'prismatic']}
     
-    # Slider configuration for vertical placement on the right side.
+    # Create vertical sliders on the right side.
     slider_height = 0.03
     slider_padding = 0.01
-    
     sliders = {}
     for i, (joint_name, joint) in enumerate(movable_joints.items()):
-        # Compute slider position on the right: [left, bottom, width, height]
-        # We reserve the right 30% of the figure. Sliders are stacked vertically from the top.
         left = 0.72
         width = 0.22
         bottom = 0.95 - (i+1)*(slider_height + slider_padding)
         rect = [left, bottom, width, slider_height]
-        ax_slider = plt.axes(rect)
+        ax_slider = fig.add_axes(rect)
         slider = Slider(ax_slider,
                         joint_name,
                         joint['limit']['lower'],
@@ -274,20 +279,20 @@ def interactive_visualizer(links, joints, tree, root_link):
         sliders[joint_name] = slider
 
     def update_sliders(val):
-        """Callback function that updates joint states and redraws the robot."""
+        """Update joint states and re-render the robot."""
         for joint_name, slider in sliders.items():
             joints[joint_name]['q'] = slider.val
-        joint_positions = calculate_joint_positions(joints, tree, root_link)
-        draw_robot(ax, joint_positions, tree, root_link)
+        new_positions = calculate_joint_positions(joints, tree, root_link)
+        draw_robot(ax, new_positions, tree, root_link)
     
-    # Connect each slider to the update callback.
+    # Connect slider events.
     for slider in sliders.values():
         slider.on_changed(update_sliders)
     
     plt.show()
 
 def main():
-    parser = argparse.ArgumentParser(description='Interactive URDF Joint Visualizer')   
+    parser = argparse.ArgumentParser(description='Interactive URDF Joint Visualizer')
     parser.add_argument('urdf_file', type=str, help='Path to the URDF file')
     args = parser.parse_args()
     
@@ -297,6 +302,9 @@ def main():
     print("Building kinematic tree...")
     tree, root_link = build_kinematic_tree(joints)
     print(f"Root link: {root_link}")
+    
+    print("\nKinematic Tree:")
+    print_kinematic_tree(tree, root_link)
     
     print("Launching interactive visualizer...")
     interactive_visualizer(links, joints, tree, root_link)
