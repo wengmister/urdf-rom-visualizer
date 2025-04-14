@@ -1,0 +1,350 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+    name="urdf_rom_visualizer/urdf">
+    <link
+    name="tcf_link">
+    <inertial>
+      <origin
+        xyz="-0.013539870918749 0.00696804614882354 0.000116280993402551"
+        rpy="0 0 0" />
+      <mass
+        value="0.00484999590725353" />
+      <inertia
+        ixx="7.75462007985153E-07"
+        ixy="2.19658485715546E-07"
+        ixz="4.3584951008583E-09"
+        iyy="9.62045357645233E-07"
+        iyz="-1.62755706072683E-07"
+        izz="6.84730747333233E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/tcf_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/tcf_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="tcf_joint"
+    type="revolute">
+    <origin
+      xyz="-0.03245 -0.0217 0.0495"
+      rpy="0 0 0" />
+    <parent
+      link="hand_base_link" />
+    <child
+      link="tcf_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.57"
+      upper="0.175"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="tca_link">
+    <inertial>
+      <origin
+        xyz="0.0104917903510064 -0.00067677932375915 0.00216340571913178"
+        rpy="0 0 0" />
+      <mass
+        value="0.00499478923208696" />
+      <inertia
+        ixx="2.16030308030573E-07"
+        ixy="1.54981546627714E-08"
+        ixz="3.4127277536893E-08"
+        iyy="5.06187109604147E-07"
+        iyz="-6.53335217098194E-10"
+        izz="5.03702828276537E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/tca_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/tca_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="tca_joint"
+    type="revolute">
+    <origin
+      xyz="-0.024 0.0169503175473055 0.011490734985006"
+      rpy="2.8031661575374 -1.01211758452699 1.96423252317511" />
+    <parent
+      link="tcf_link" />
+    <child
+      link="tca_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.5"
+      upper="1"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="tma_link">
+    <inertial>
+      <origin
+        xyz="0.00971662082317795 6.7890478227535E-05 0.000726629607537624"
+        rpy="0 0 0" />
+      <mass
+        value="0.00320272686969075" />
+      <inertia
+        ixx="9.80474055431482E-08"
+        ixy="-2.05206873883353E-09"
+        ixz="5.83406243383444E-09"
+        iyy="1.89906799468114E-07"
+        iyz="-8.1730837154214E-11"
+        izz="1.95297660560772E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/tma_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/tma_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="tma_joint"
+    type="revolute">
+    <origin
+      xyz="0.025 -0.00145732356538961 9.99999999999959E-05"
+      rpy="-1.5707963267949 0.27478795531439 0" />
+    <parent
+      link="tca_link" />
+    <child
+      link="tma_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.2"
+      upper="0.7"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="tmf_link">
+    <inertial>
+      <origin
+        xyz="0.010171865697685 -0.0011202306871584 -2.35404821330443E-09"
+        rpy="0 0 0" />
+      <mass
+        value="0.000948811114997919" />
+      <inertia
+        ixx="8.68411494167366E-09"
+        ixy="2.91569669791614E-09"
+        ixz="-1.30374967148723E-14"
+        iyy="9.65825232359052E-08"
+        iyz="-1.90695861458843E-14"
+        izz="1.02763635257402E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/tmf_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/tmf_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="tmf_joint"
+    type="revolute">
+    <origin
+      xyz="0.02 0 0.0015"
+      rpy="1.5708 -0.34679 0" />
+    <parent
+      link="tma_link" />
+    <child
+      link="tmf_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.8"
+      upper="1.57"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="tdf_link">
+    <inertial>
+      <origin
+        xyz="-0.000706794999553423 -7.9780973222171E-05 -0.00011278668803491"
+        rpy="0 0 0" />
+      <mass
+        value="0.00217689228300246" />
+      <inertia
+        ixx="5.19422563367913E-08"
+        ixy="-1.62505401102351E-09"
+        ixz="1.45574793265714E-10"
+        iyy="1.78158999808894E-07"
+        iyz="2.00750263449577E-11"
+        izz="1.63515579779239E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/tdf_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/tdf_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="tdf_joint"
+    type="revolute">
+    <origin
+      xyz="0.025 0 0"
+      rpy="0 0 0.1282" />
+    <parent
+      link="tmf_link" />
+    <child
+      link="tdf_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="1.25"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="t_tip_link">
+    <inertial>
+      <origin
+        xyz="-0.105552455251491 0.084272694445698 -0.0335788371406572"
+        rpy="0 0 0" />
+      <mass
+        value="0.373944949275405" />
+      <inertia
+        ixx="0.000601288464159589"
+        ixy="0.000396721012826217"
+        ixz="0.000256643466126533"
+        iyy="0.00190589510257444"
+        iyz="-2.98758206075258E-05"
+        izz="0.00208595320054182" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/t_tip_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/t_tip_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="t_tip"
+    type="fixed">
+    <origin
+      xyz="0.012137 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="tdf_link" />
+    <child
+      link="t_tip_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+</robot>

@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+    name="urdf_rom_visualizer/index_urdf">
+    <link
+    name="ima_link">
+    <inertial>
+      <origin
+        xyz="0.00545951158432825 -8.86632095186239E-05 0.000675702355864649"
+        rpy="0 0 0" />
+      <mass
+        value="0.00377097433248701" />
+      <inertia
+        ixx="1.92751114104043E-07"
+        ixy="3.86822225253669E-09"
+        ixz="1.50761022617964E-08"
+        iyy="2.98859727376661E-07"
+        iyz="-5.17909336999066E-10"
+        izz="2.60279404999028E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/ima_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/ima_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ima_joint"
+    type="revolute">
+    <origin
+      xyz="-0.030085 -0.0405 0.11024"
+      rpy="-1.5708 -1.4573 -3.1416" />
+    <parent
+      link="hand_base_link" />
+    <child
+      link="ima_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.436"
+      upper="0.436"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="imf_link">
+    <inertial>
+      <origin
+        xyz="0.0153264557799375 0.000131170231311645 -0.000214215913830931"
+        rpy="0 0 0" />
+      <mass
+        value="0.0035062778446748" />
+      <inertia
+        ixx="7.49209010355309E-08"
+        ixy="-2.77275284746545E-10"
+        ixz="-1.59748477244705E-08"
+        iyy="3.79952976568586E-07"
+        iyz="4.50763719009459E-11"
+        izz="3.76775898526847E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/imf_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/imf_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="imf_joint"
+    type="revolute">
+    <origin
+      xyz="0.017 0 -0.000875"
+      rpy="-1.5708 0 0" />
+    <parent
+      link="ima_link" />
+    <child
+      link="imf_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.57"
+      upper="1.57"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="ipf_link">
+    <inertial>
+      <origin
+        xyz="0.0110133857157522 -0.0013539573318288 4.13325357967453E-09"
+        rpy="0 0 0" />
+      <mass
+        value="0.00108838501206663" />
+      <inertia
+        ixx="1.06723406101795E-08"
+        ixy="4.16185682602931E-09"
+        ixz="1.47097798575409E-14"
+        iyy="1.13635444630546E-07"
+        iyz="-1.28940560630467E-14"
+        izz="1.21308280596702E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/ipf_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/ipf_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ipf_joint"
+    type="revolute">
+    <origin
+      xyz="0.031 0 0"
+      rpy="0 0 1.1732" />
+    <parent
+      link="imf_link" />
+    <child
+      link="ipf_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.873"
+      upper="1.57"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="idf_link">
+    <inertial>
+      <origin
+        xyz="-0.00394721683074043 -0.000117912503330986 -0.000103068103649268"
+        rpy="0 0 0" />
+      <mass
+        value="0.00213606646468501" />
+      <inertia
+        ixx="5.37047683891191E-08"
+        ixy="-1.93680982279618E-09"
+        ixz="8.38611839997985E-10"
+        iyy="1.74117816677215E-07"
+        iyz="2.6340044682636E-11"
+        izz="1.56263328704584E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/idf_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/idf_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="idf_joint"
+    type="revolute">
+    <origin
+      xyz="0.02618 0 0"
+      rpy="0 0 0.39762" />
+    <parent
+      link="ipf_link" />
+    <child
+      link="idf_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="1.25"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="i_tip_link">
+    <inertial>
+      <origin
+        xyz="-0.0328256071826454 0.147308823096796 -0.0155988861161978"
+        rpy="0 0 0" />
+      <mass
+        value="0.373944949275405" />
+      <inertia
+        ixx="0.00211286501257009"
+        ixy="0.000169956172272582"
+        ixz="-1.19298039483256E-05"
+        iyy="0.000494143382388499"
+        iyz="-0.000202903558745888"
+        izz="0.00198612837231726" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/i_tip_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://hand_urdf_updated/meshes/i_tip_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="i_tip"
+    type="fixed">
+    <origin
+      xyz="0.0091323 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="idf_link" />
+    <child
+      link="i_tip_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+</robot>
