@@ -337,13 +337,16 @@ def draw_scene(ax, joint_positions, tree, root_link, workspace_points=None):
         ws_xs = [p[0] for p in workspace_points]
         ws_ys = [p[1] for p in workspace_points]
         ws_zs = [p[2] for p in workspace_points]
-        ax.scatter(ws_xs, ws_ys, ws_zs, c='g', marker='.', s=10, alpha=0.2, label='Workspace')
+        
+        # Use a color gradient based on the distance from the origin (0, 0, 0)
+        ws_colors = [np.linalg.norm([x, y, z]) for x, y, z in zip(ws_xs, ws_ys, ws_zs)]  # Calculate distances
+        ax.scatter(ws_xs, ws_ys, ws_zs, c=ws_colors, cmap='viridis', marker='.', s=10, alpha=0.6, label='Workspace')
     
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
     ax.set_title('URDF Joint Visualization with Reachable Workspace')
-    ax.legend()
+    ax.legend(loc='lower left')
     
     all_points = []
     if joint_positions:

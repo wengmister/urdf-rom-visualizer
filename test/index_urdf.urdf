@@ -48,7 +48,7 @@
     name="ima_joint"
     type="revolute">
     <origin
-      xyz="-0.030085 -0.0405 0.11024"
+      xyz="0 0 0"
       rpy="-1.5708 -1.4573 -3.1416" />
     <parent
       link="hand_base_link" />

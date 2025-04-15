@@ -48,7 +48,7 @@
     name="tcf_joint"
     type="revolute">
     <origin
-      xyz="-0.03245 -0.0217 0.0495"
+      xyz="0 0 0"
       rpy="0 0 0" />
     <parent
       link="hand_base_link" />
