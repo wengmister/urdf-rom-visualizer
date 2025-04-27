@@ -8,36 +8,103 @@ from scipy.spatial.transform import Rotation as R
 import math
 
 # Add necessary functions for manipulability and joint limit distance calculations
-def calculate_manipulability(joint_limits, joint_values, method='yoshikawa'):
+def calculate_manipulability(joint_limits, joint_values, T_matrices=None):
     """
-    Calculate the manipulability measure at the given joint configuration.
-    This is a simplified implementation based on joint proximity to limits.
+    Calculate the Yoshikawa manipulability measure at the given joint configuration.
     
-    A more accurate implementation would compute the Jacobian matrix and 
-    use the Yoshikawa manipulability measure: sqrt(det(J*J^T))
+    Yoshikawa manipulability = sqrt(det(J*J^T)) where J is the Jacobian matrix
     """
-    # Simplified implementation - uses joint positions relative to their limits
-    manipulability = 1.0
+    # For a 7-DOF robot, Jacobian is a 6x7 matrix (6 for position/orientation, 7 for joints)
     
-    for joint_name, joint_value in joint_values.items():
-        if joint_name in joint_limits and 'type' not in joint_limits[joint_name]:
-            lower = joint_limits[joint_name]['lower']
-            upper = joint_limits[joint_name]['upper']
+    # Get all the relevant joint names in order
+    joint_names = []
+    for joint_name in joint_limits:
+        if 'type' not in joint_limits[joint_name] and 'fer_joint' in joint_name:
+            # Only include revolute Franka joints
+            joint_names.append(joint_name)
+    
+    # Sort joint names numerically
+    joint_names = sorted(joint_names, key=lambda x: int(x.replace('fer_joint', '')))
+    
+    # Map from joint name to corresponding link name
+    joint_to_link = {}
+    for joint_name in joint_names:
+        joint_to_link[joint_name] = joint_limits[joint_name]['child']
+    
+    # If transformation matrices weren't provided, we need to calculate them
+    if T_matrices is None:
+        # We need transformations for each link to compute the Jacobian
+        T_matrices = {}
+        T_matrices['base'] = np.eye(4)
+        
+        # Calculate transformations for each joint
+        for joint_name in joint_names:
+            # Get parent and child links
+            parent_link = joint_limits[joint_name]['parent']
+            child_link = joint_limits[joint_name]['child']
             
-            # Calculate normalized position in joint range (0 to 1)
-            if upper > lower:
-                normalized_pos = (joint_value - lower) / (upper - lower)
-                
-                # Calculate distance from center of joint range
-                # (0.5 is the center, 0 means at a limit, 1 means at the other limit)
-                center_dist = abs(normalized_pos - 0.5) * 2  # Scale to [0,1]
-                
-                # This factor will be closer to 1 when joint is near middle of range
-                # and closer to 0 when joint is near limits
-                factor = 1.0 - center_dist
-                
-                # Accumulate the manipulability
-                manipulability *= (0.5 + factor)  # Scale to make sure it's never exactly 0
+            # Get joint origin
+            origin_xyz = joint_limits[joint_name]['origin_xyz']
+            origin_rpy = joint_limits[joint_name]['origin_rpy']
+            
+            # Create transformation for joint origin
+            T_origin = transformation_matrix(origin_xyz, origin_rpy)
+            
+            # Create transformation for joint rotation
+            axis = joint_limits[joint_name]['axis']
+            angle = joint_values[joint_name]
+            R = rotation_matrix_from_axis_angle(axis, angle)
+            
+            # Create transformation matrix for rotation
+            T_rotation = np.eye(4)
+            T_rotation[:3, :3] = R
+            
+            # Calculate joint transformation
+            if parent_link in T_matrices:
+                T_matrices[child_link] = T_matrices[parent_link] @ T_origin @ T_rotation
+            else:
+                # If parent transformation not available, use identity
+                T_matrices[child_link] = T_origin @ T_rotation
+    
+    # Get the end effector position (from the last link)
+    end_effector_link = joint_to_link[joint_names[-1]]
+    p_end = T_matrices[end_effector_link][:3, 3]
+    
+    # Calculate the Jacobian matrix
+    J = np.zeros((6, len(joint_names)))
+    
+    # Calculate Jacobian for each joint
+    for i, joint_name in enumerate(joint_names):
+        # Get link corresponding to this joint
+        link = joint_to_link[joint_name]
+        
+        # Get joint axis in world frame (z-axis in joint frame)
+        z_axis_local = np.array([0, 0, 1])
+        R_joint = T_matrices[link][:3, :3]
+        z_axis_world = R_joint @ z_axis_local
+        
+        # Joint position
+        p_joint = T_matrices[link][:3, 3]
+        
+        # Calculate linear velocity component (cross product of joint axis and distance vector)
+        J_linear = np.cross(z_axis_world, p_end - p_joint)
+        
+        # Calculate angular velocity component (just the joint axis)
+        J_angular = z_axis_world
+        
+        # Fill in Jacobian column
+        J[:3, i] = J_linear
+        J[3:, i] = J_angular
+    
+    # Calculate Yoshikawa manipulability measure
+    JJT = J @ J.T
+    
+    # Handle potential numerical issues
+    try:
+        manipulability = np.sqrt(max(np.linalg.det(JJT), 0))
+    except:
+        # If determinant is negative or can't be computed, return a small value
+        manipulability = 1e-10
     
     return manipulability
 
@@ -375,19 +442,67 @@ def visualize_reachable_workspace(urdf_file, end_effector_link='fer_link8', pare
     distance_from_limits = []
     
     for joint_values in joint_configs:
-        # Calculate end effector transformation
-        T_end_effector = forward_kinematics(joint_limits, joint_values, end_effector_link)
+        # Calculate transformations for all joints
+        transforms = {}
+        transforms['base'] = np.eye(4)
         
-        # Calculate parent link transformation
-        T_parent = forward_kinematics(joint_limits, joint_values, parent_link)
+        # Calculate transformations for each joint in topological order
+        sorted_links = ['base']
+        link_to_joint = {}
+        
+        # Create mapping from child link to joint
+        for joint_name, joint_info in joint_limits.items():
+            link_to_joint[joint_info['child']] = joint_name
+        
+        # Topological sort
+        while len(sorted_links) < len(link_to_joint) + 1:
+            for joint_name, joint_info in joint_limits.items():
+                if joint_info['parent'] in sorted_links and joint_info['child'] not in sorted_links:
+                    sorted_links.append(joint_info['child'])
+        
+        # Calculate transformations
+        for link in sorted_links[1:]:  # Skip base
+            joint_name = link_to_joint[link]
+            joint_info = joint_limits[joint_name]
+            
+            # Get parent transformation
+            parent_T = transforms[joint_info['parent']]
+            
+            # Create joint transformation
+            joint_origin_T = transformation_matrix(joint_info['origin_xyz'], joint_info['origin_rpy'])
+            
+            if 'type' in joint_info and joint_info['type'] == 'fixed':
+                # For fixed joints, no additional rotation
+                joint_T = joint_origin_T
+            else:
+                # For revolute joints, apply rotation around axis
+                angle = joint_values[joint_name] if joint_name in joint_values else 0
+                axis = joint_info['axis'] if 'axis' in joint_info else np.array([0, 0, 1])
+                
+                # Create rotation matrix
+                R = rotation_matrix_from_axis_angle(axis, angle)
+                
+                # Create transformation matrix
+                joint_rot_T = np.eye(4)
+                joint_rot_T[:3, :3] = R
+                
+                # Combine origin transformation and rotation
+                joint_T = joint_origin_T @ joint_rot_T
+            
+            # Combine with parent transformation
+            transforms[link] = parent_T @ joint_T
+        
+        # Calculate end effector and parent link transformations
+        T_end_effector = transforms[end_effector_link]
+        T_parent = transforms[parent_link]
         
         # Check if constraint is satisfied
         if check_constraint(T_end_effector, T_parent, angle_threshold_deg):
             # If satisfied, add end effector position to valid points
             valid_points.append(T_end_effector[:3, 3])
             
-            # Calculate manipulability (simplified version)
-            manipulability = calculate_manipulability(joint_limits, joint_values)
+            # Calculate manipulability using Yoshikawa measure
+            manipulability = calculate_manipulability(joint_limits, joint_values, transforms)
             manipulability_values.append(manipulability)
             
             # Calculate distance from joint limits
@@ -410,7 +525,7 @@ def visualize_reachable_workspace(urdf_file, end_effector_link='fer_link8', pare
         norm_manip = (manipulability_values - np.min(manipulability_values)) / (np.max(manipulability_values) - np.min(manipulability_values) + 1e-10)
         
         # Adjust alpha based on manipulability (higher manipulability = more opaque)
-        alpha_values = 0.1 + norm_manip * 0.9  # Scale from 0.1 to 1.0
+        alpha_values = 0.2 + norm_manip * 0.8  # Scale from 0.2 to 1.0
         
         # Plot points colored by manipulability with varying transparency
         scatter1 = ax1.scatter(valid_points[:, 0], valid_points[:, 1], valid_points[:, 2], 
@@ -418,7 +533,7 @@ def visualize_reachable_workspace(urdf_file, end_effector_link='fer_link8', pare
         
         # Add a colorbar
         cbar1 = plt.colorbar(scatter1, ax=ax1, pad=0.1)
-        cbar1.set_label('Manipulability (normalized)')
+        cbar1.set_label('Manipulability (Yoshikawa)')
     else:
         ax1.text(0, 0, 0, "No valid points found", fontsize=12)
     
@@ -427,7 +542,7 @@ def visualize_reachable_workspace(urdf_file, end_effector_link='fer_link8', pare
         norm_dist = (distance_from_limits - np.min(distance_from_limits)) / (np.max(distance_from_limits) - np.min(distance_from_limits) + 1e-10)
         
         # Adjust alpha based on distance from limits (farther from limits = more opaque)
-        alpha_values = 0.1 + norm_dist * 0.9  # Scale from 0.1 to 1.0
+        alpha_values = 0.2 + norm_dist * 0.8  # Scale from 0.2 to 1.0
         
         # Plot points colored by distance from limits with varying transparency
         scatter2 = ax2.scatter(valid_points[:, 0], valid_points[:, 1], valid_points[:, 2], 
@@ -438,18 +553,6 @@ def visualize_reachable_workspace(urdf_file, end_effector_link='fer_link8', pare
         cbar2.set_label('Distance from Joint Limits (normalized)')
     else:
         ax2.text(0, 0, 0, "No valid points found", fontsize=12)
-    
-    # Try to compute convex hull for visualization
-    try:
-        if len(valid_points) > 4:  # Need at least 4 points for 3D hull
-            hull = ConvexHull(valid_points)
-            for simplex in hull.simplices:
-                ax1.plot3D(valid_points[simplex, 0], valid_points[simplex, 1], 
-                          valid_points[simplex, 2], 'r-', alpha=0.3)
-                ax2.plot3D(valid_points[simplex, 0], valid_points[simplex, 1], 
-                          valid_points[simplex, 2], 'r-', alpha=0.3)
-    except Exception as e:
-        print(f"Could not compute convex hull: {e}")
     
     # Plot the robot base
     ax1.scatter([0], [0], [0], c='r', marker='o', s=100, label='Robot Base')
@@ -499,10 +602,6 @@ def visualize_reachable_workspace(urdf_file, end_effector_link='fer_link8', pare
     ax1.legend()
     ax2.legend()
     
-    # Show plot
-    plt.tight_layout()
-    plt.show()
-    
     # Print statistics
     print(f"Total sampled configurations: {num_samples}")
     print(f"Valid configurations: {len(valid_points)}")
@@ -524,6 +623,49 @@ def visualize_reachable_workspace(urdf_file, end_effector_link='fer_link8', pare
             print(f"Min manipulability: {np.min(manipulability_values):.4f}")
             print(f"Max manipulability: {np.max(manipulability_values):.4f}")
             print(f"Avg manipulability: {np.mean(manipulability_values):.4f}")
+            
+            # Find optimal Z-height with highest manipulability
+            # Group points by Z-height with small tolerance
+            z_tolerance = 0.01  # 1cm tolerance for grouping Z values
+            z_grouped = {}
+            
+            for i, point in enumerate(valid_points):
+                z = point[2]
+                # Round to nearest bin for grouping
+                z_bin = round(z / z_tolerance) * z_tolerance
+                
+                if z_bin not in z_grouped:
+                    z_grouped[z_bin] = []
+                
+                z_grouped[z_bin].append(manipulability_values[i])
+            
+            # Calculate total manipulability at each Z-height
+            z_total_manipulability = {}
+            for z_bin, manips in z_grouped.items():
+                z_total_manipulability[z_bin] = np.sum(manips)
+
+            # Find Z-height with the highest total manipulability
+            best_z = max(z_total_manipulability.items(), key=lambda x: x[1])
+            print(f"\nOptimal Z-height: {best_z[0]:.4f} m with total manipulability: {best_z[1]:.4f}")
+                        
+            # Create a horizontal plane at the optimal Z-height for visualization
+            if len(valid_points) > 0:
+                x_min, x_max = np.min(valid_points[:, 0]), np.max(valid_points[:, 0])
+                y_min, y_max = np.min(valid_points[:, 1]), np.max(valid_points[:, 1])
+                
+                # Create a meshgrid for the plane
+                grid_size = 20
+                x_grid = np.linspace(x_min, x_max, grid_size)
+                y_grid = np.linspace(y_min, y_max, grid_size)
+                X, Y = np.meshgrid(x_grid, y_grid)
+                Z = np.ones_like(X) * best_z[0]
+                
+                # Plot the plane on both subplots
+                ax1.plot_surface(X, Y, Z, color='r', alpha=0.2)
+                ax1.text(x_min, y_min, best_z[0], f"Optimal Z: {best_z[0]:.3f}m", color='r')
+                
+                ax2.plot_surface(X, Y, Z, color='r', alpha=0.2)
+                ax2.text(x_min, y_min, best_z[0], f"Optimal Z: {best_z[0]:.3f}m", color='r')
         
         if len(distance_from_limits) > 0:
             print(f"\nJoint limit distance statistics:")
