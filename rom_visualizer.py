@@ -219,7 +219,7 @@ def sample_joint_positions(joints, tree, root_link, target_joints, joint_samples
     end_positions = []
     
     # Limit the number of combinations for performance
-    max_combinations = 10000
+    max_combinations = 40000
     num_configs = 1
     for samples in joint_samples.values():
         num_configs *= len(samples)
